@@ -30,27 +30,30 @@ func newClient(connection net.Conn, uniqueID int64) *client {
 		writer:     writer,
 	}
 
+	// start listening (read/write)
 	clientInf.listen()
 
 	// pinger
-	go func(connection net.Conn, uniqueID int64, c *client) {
-		ticker := time.NewTicker(3 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				tmp := make([]byte, 12)
-				_, err := connection.Read(tmp)
-				if err == io.EOF {
-					c.flush()
-					c.disconnect <- uniqueID
-					return
-				}
-			}
-		}
-	}(connection, uniqueID, clientInf)
+	go clientInf.healthPing(connection, uniqueID)
 
 	return clientInf
+}
+
+func (c *client) healthPing(connection net.Conn, uniqueID int64) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			tmp := make([]byte, 12)
+			_, err := connection.Read(tmp)
+			if err == io.EOF {
+				c.flush()
+				c.disconnect <- uniqueID
+				return
+			}
+		}
+	}
 }
 
 func (c *client) flush() {

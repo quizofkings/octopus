@@ -2,8 +2,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/quizofkings/octopus)](https://goreportcard.com/report/github.com/quizofkings/octopus)
 [![CircleCI](https://circleci.com/gh/quizofkings/octopus/tree/master.svg?style=svg)](https://circleci.com/gh/quizofkings/octopus/tree/master)
 
-Redis Multi-Cluster load balancing using prefix
-No need to change anything, octopus use RESP (REdis Serialization Protocol)
+Redis Multi-Cluster load balancing using prefix key,
+No need to change anything, octopus use RESP (REdis Serialization Protocol).
 *Developing/ Testing/ Documention in progress*
 
 ## Config
