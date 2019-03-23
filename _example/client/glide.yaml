@@ -1,0 +1,4 @@
+package: github.com/quizofkings/octopus/_example/client
+import:
+- package: github.com/go-redis/redis
+  version: ^6.15.2
