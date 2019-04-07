@@ -2,7 +2,7 @@ version: '2'
 services:
   octopus:
     container_name: octopus-gateway
-    image: 1264cd556c5d #amirsoleimani/octopus:b0d2ca7
+    image: amirsoleimani/octopus:b0d2ca7
     restart: always
     volumes:
        - /Users/xxx/go/config:/config
