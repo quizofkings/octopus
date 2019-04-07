@@ -27,9 +27,20 @@ Sample JSON:
                 "172.20.3.4:7001",
                 "172.20.3.10:7004"
             ],
-            "prefix": [
+            "prefixes": [
                 "match:",
                 "stats:"
+            ]
+        },
+        {
+            "ismain": false,
+            "name": "local-test",
+            "nodes": [
+                "localhost:6379",
+                "localhost:6380"
+            ],
+            "prefixes": [
+                "pigfog:"
             ]
         },
         {
@@ -39,7 +50,7 @@ Sample JSON:
                 "10.5.150.5:7000",
                 "10.5.150.12:7003"
             ],
-            "prefix": [
+            "prefixes": [
                 "tournament:"
             ]
         }
