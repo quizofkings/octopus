@@ -21,8 +21,7 @@
             "ismain": false,
             "name": "local-test",
             "nodes": [
-                "localhost:6379",
-                "localhost:6380"
+                "localhost:6379"
             ],
             "prefixes": [
                 "pigfog:"
