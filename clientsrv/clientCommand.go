@@ -13,15 +13,11 @@ import (
 
 //ClientCommand interface
 type ClientCommand interface {
-	Listen()
 	Join(conn net.Conn)
 }
 
 type clientInfo struct {
-	clients  map[int64]*client
-	joins    chan net.Conn
-	incoming chan []byte
-	outgoing chan []byte
+	clients map[int64]*client
 
 	gate network.NetCommands
 }
@@ -70,25 +66,17 @@ func (c *clientInfo) healthCheck(uniqueID int64) {
 	}
 }
 
-//Listen listen for joins client connection
-func (c *clientInfo) Listen() {
-	go func() {
-		for {
-			select {
-			case conn := <-c.joins:
-				c.Join(conn)
-			}
-		}
-	}()
-}
-
 //receiveCmd handle received resp command
 func (c *clientInfo) receiveCmd(client *client, msg []byte) {
 
+	// variable
+	var (
+		mainNode     = true
+		clusterIndex int
+		prefix       string
+	)
+
 	// find hash path
-	mainNode := true
-	var clusterIndex int
-	var prefix string
 	for prefix, clusterIndex = range config.Reader.Prefixes {
 		bufStr := string(msg)
 		splits := strings.Split(bufStr, "\n")

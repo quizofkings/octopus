@@ -40,7 +40,6 @@ type Opt struct {
 	Type      string // json, etcd, consul
 	File      string
 	Path      string
-	RemoteKey string
 	Host      string
 	EtcdAddr  string
 	ConsulKey string

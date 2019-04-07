@@ -57,6 +57,5 @@ Flags:
   -h, --help               help for gate
       --host string        config remote host (ex. http://127.0.0.1:4001)
   -p, --path string        config path (default is /) (default "/")
-  -r, --remotekey string   etcd/consul remote key (default is empty)
   -t, --type string        config type (file, etcd, consul) (default "file")
 ```

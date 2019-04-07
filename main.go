@@ -26,7 +26,6 @@ var rootCmd = &cobra.Command{
 			Type:      envType,
 			File:      envFile,
 			Path:      envPath,
-			RemoteKey: envRemoteKey,
 			Host:      envHost,
 			EtcdAddr:  envEtcdAddr,
 			ConsulKey: envConsulKey,
@@ -60,7 +59,6 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&envType, "type", "t", "file", "config type (file, etcd, consul)")
 	rootCmd.PersistentFlags().StringVarP(&envPath, "path", "p", "/", "config path (default is /)")
 	rootCmd.PersistentFlags().StringVarP(&envFile, "file", "f", "config", "config file name (without extenstion)")
-	rootCmd.PersistentFlags().StringVarP(&envRemoteKey, "remotekey", "r", "", "etcd/consul remote key (default is empty)")
 	rootCmd.PersistentFlags().StringVar(&envHost, "host", "", "config remote host (ex. http://127.0.0.1:4001)")
 	rootCmd.PersistentFlags().StringVar(&envEtcdAddr, "etcdaddr", "", "etcd file address")
 	rootCmd.PersistentFlags().StringVar(&envConsulKey, "consulkey", "", "consul k/v namespace")

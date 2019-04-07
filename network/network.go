@@ -92,6 +92,7 @@ RETRYCMD:
 	bufc := respreader.NewReader(conn)
 	bufNode, err := bufc.ReadObject()
 	if err != nil {
+		logrus.Errorln(err)
 		return nil, err
 	}
 
