@@ -70,3 +70,7 @@ Flags:
   -p, --path string        config path (default is /) (default "/")
   -t, --type string        config type (file, etcd, consul) (default "file")
 ```
+
+```sh
+go run main.go -f config -p ./_example -t file
+```

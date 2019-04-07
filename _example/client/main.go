@@ -15,4 +15,8 @@ func main() {
 
 	pong, err := client.Ping().Result()
 	fmt.Println(pong, err)
+
+	// others...
+	// fmt.Println(client.Get("pigfog:amir").Result())
+	// fmt.Println(client.SMembers("pigfog:ssss").Result())
 }
