@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"io"
 	"math/rand"
 	"net"
 
@@ -22,7 +23,8 @@ type NetCommands interface {
 
 //ClusterPool struct
 type ClusterPool struct {
-	conns map[string]pool // addr => pool
+	conns  map[string]pool // addr => pool
+	reconn chan net.Conn
 }
 
 //New create network ^-^
@@ -37,7 +39,8 @@ func New() NetCommands {
 	logrus.Infoln("create node(s) connection")
 
 	var clusterPoolMap = ClusterPool{
-		conns: map[string]pool{},
+		conns:  map[string]pool{},
+		reconn: make(chan net.Conn),
 	}
 
 	// do
@@ -47,7 +50,24 @@ func New() NetCommands {
 		}
 	}
 
+	// reconnect channel
+	go clusterPoolMap.reconnectHandler()
+
 	return &clusterPoolMap
+}
+
+//reconnectHandler reconnect handler
+func (c *ClusterPool) reconnectHandler() {
+	for {
+		select {
+		case conn := <-c.reconn:
+			var err error
+			conn, err = net.Dial("tcp", conn.RemoteAddr().String())
+			if err != nil {
+				logrus.Errorln(err)
+			}
+		}
+	}
 }
 
 //AddNode add new node when redis ASK/MOVED/initialize
@@ -92,6 +112,11 @@ RETRYCMD:
 	bufc := respreader.NewReader(conn)
 	bufNode, err := bufc.ReadObject()
 	if err != nil {
+		logrus.Errorln(err)
+		if err == io.EOF {
+			// send to channel for reconnect
+			c.reconn <- conn
+		}
 		return nil, err
 	}
 

@@ -34,7 +34,7 @@ type RESPReader struct {
 //NewReader create new reader
 func NewReader(reader io.Reader) *RESPReader {
 	return &RESPReader{
-		Reader: bufio.NewReaderSize(reader, 32*1024),
+		Reader: bufio.NewReaderSize(reader, 4*1024),
 	}
 }
 
@@ -65,10 +65,10 @@ func (r *RESPReader) readLine() (line []byte, err error) {
 
 	if len(line) > 1 && line[len(line)-2] == '\r' {
 		return line, nil
-	} else {
-		// Line was too short or \n wasn't preceded by \r.
-		return nil, ErrInvalidSyntax
 	}
+
+	// Line was too short or \n wasn't preceded by \r.
+	return nil, ErrInvalidSyntax
 }
 
 func (r *RESPReader) readBulkString(line []byte) ([]byte, error) {

@@ -27,9 +27,20 @@ Sample JSON:
                 "172.20.3.4:7001",
                 "172.20.3.10:7004"
             ],
-            "prefix": [
+            "prefixes": [
                 "match:",
                 "stats:"
+            ]
+        },
+        {
+            "ismain": false,
+            "name": "local-test",
+            "nodes": [
+                "localhost:6379",
+                "localhost:6380"
+            ],
+            "prefixes": [
+                "pigfog:"
             ]
         },
         {
@@ -39,7 +50,7 @@ Sample JSON:
                 "10.5.150.5:7000",
                 "10.5.150.12:7003"
             ],
-            "prefix": [
+            "prefixes": [
                 "tournament:"
             ]
         }
@@ -57,6 +68,9 @@ Flags:
   -h, --help               help for gate
       --host string        config remote host (ex. http://127.0.0.1:4001)
   -p, --path string        config path (default is /) (default "/")
-  -r, --remotekey string   etcd/consul remote key (default is empty)
   -t, --type string        config type (file, etcd, consul) (default "file")
+```
+
+```sh
+go run main.go -f config -p ./_example -t file
 ```

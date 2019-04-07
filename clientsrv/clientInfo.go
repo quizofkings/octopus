@@ -70,10 +70,10 @@ func (c *client) Read() {
 	for {
 		tmp := make([]byte, 512)
 		_, err := c.reader.Read(tmp)
-		c.incoming <- tmp
 		if err == io.EOF {
 			return
 		}
+		c.incoming <- tmp
 	}
 }
 
