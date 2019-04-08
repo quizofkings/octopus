@@ -1,8 +1,8 @@
 {
     "port": 9090,
     "pool": {
-        "maxcap": 30,
-        "initcap": 10
+        "maxcap": 3,
+        "initcap": 3
     },
     "clusters": [
         {
@@ -24,6 +24,18 @@
             "prefixes": [
                 "game_matching:"
             ]
+        },
+        {
+            "ismain": false,
+            "name": "qok-challenge",
+            "nodes": [
+                "172.20.11.7:4014",
+                "172.20.11.6:4012"
+            ],
+            "prefixes": [
+                "challenge:"
+            ]
         }
+
     ]
 }

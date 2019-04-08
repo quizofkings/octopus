@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -82,12 +84,13 @@ func (c *channelPool) get() (net.Conn, error) {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
-		if cap(c.conns) > c.connCount+1 {
+		if cap(c.conns) >= c.connCount {
 			return
 		}
 
 		conn, err := factory()
 		if err != nil {
+			logrus.Errorln(err)
 			return
 		}
 		c.connCount++
@@ -96,12 +99,15 @@ func (c *channelPool) get() (net.Conn, error) {
 
 	// wrap our connections with out custom net.Conn implementation (wrapConn
 	// method) that puts the connection back to the pool if it's closed.
+	fmt.Println("00")
 	select {
 	case conn := <-conns:
+		fmt.Println("0A")
 		if conn == nil {
 			return nil, ErrClosed
 		}
 
+		fmt.Println("0B")
 		return c.wrapConn(conn), nil
 	}
 }
@@ -116,10 +122,10 @@ func (c *channelPool) put(conn net.Conn) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if c.conns == nil {
-		// pool is closed, close passed connection
-		return conn.Close()
-	}
+	// if c.conns == nil {
+	// 	// pool is closed, close passed connection
+	// 	return conn.Close()
+	// }
 
 	// put the resource back into the pool. If the pool is full, this will
 	// block and the default case will be executed.
@@ -156,7 +162,10 @@ func (c *channelPool) Len() int {
 
 // newConn wraps a standard net.Conn to a poolConn net.Conn.
 func (c *channelPool) wrapConn(conn net.Conn) net.Conn {
-	p := &poolConn{c: c}
+	p := &poolConn{
+		c: c,
+		n: newNode(conn),
+	}
 	p.Conn = conn
 	return p
 }

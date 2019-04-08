@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"sync"
 )
@@ -10,10 +11,12 @@ type poolConn struct {
 	net.Conn
 	mu       sync.RWMutex
 	c        *channelPool
+	n        *node
 	unusable bool
 }
 
 func (p *poolConn) Close() error {
+	fmt.Println("noooooooooo")
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

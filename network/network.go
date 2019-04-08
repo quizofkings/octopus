@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -106,6 +107,10 @@ func (c *ClusterPool) Write(index int, msg []byte) ([]byte, error) {
 
 func (c *ClusterPool) writeAction(addr string, msg []byte) ([]byte, error) {
 
+	// variable
+	bufNode := []byte{}
+
+	fmt.Println(addr)
 	// get connection
 	conn, err := c.conns[addr].get()
 	if err != nil {
@@ -113,31 +118,59 @@ func (c *ClusterPool) writeAction(addr string, msg []byte) ([]byte, error) {
 	}
 	defer conn.Close()
 
-	// write into connection
-	if _, err := conn.Write(msg); err != nil {
-		logrus.Errorln(err)
+	fmt.Println("aaaa")
 
-		// close the underlying connection instead of returning it to pool
-		if pc, ok := conn.(*poolConn); ok {
-			pc.markUnusable()
-			pc.Close()
-		}
+	// write
+	conn.(*poolConn).n.outgoing <- msg
 
-		return nil, err
+	fmt.Println("bbbbb")
+
+	// read
+	select {
+	case saeed := <-conn.(*poolConn).n.incoming:
+		bufNode = saeed
 	}
 
-	// reader */*~
-	bufc := respreader.NewReader(conn)
-	bufNode, err := bufc.ReadObject()
-	if err != nil {
-		logrus.Errorln(err)
-		if err == io.EOF {
-			logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
-			// send to channel for reconnect
-			c.reconn <- conn
-		}
-		return nil, err
-	}
+	fmt.Println("ccccc", string(bufNode))
+
+	// // write into connection
+	// if _, err := conn.Write(msg); err != nil {
+	// 	logrus.Errorln(err)
+
+	// 	// close the underlying connection instead of returning it to pool
+	// 	if pc, ok := conn.(*poolConn); ok {
+	// 		pc.markUnusable()
+	// 		pc.Close()
+	// 	}
+
+	// 	return nil, err
+	// }
+
+	// bufNode := []byte{}
+	// bufChan := make(chan []byte)
+	// go c.readTest(conn, bufChan)
+	// select {
+	// case x := <-bufChan:
+	// 	fmt.Println("pashidam")
+	// 	bufNode = x
+	// }
+
+	// fmt.Println(string(bufNode))
+
+	// // reader */*~
+	// bufc := respreader.NewReader(conn)
+	// bufNode, err := bufc.ReadObject()
+	// if err != nil {
+	// 	logrus.Errorln(err)
+	// 	if err == io.EOF {
+	// 		logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
+	// 		// send to channel for reconnect
+	// 		c.reconn <- conn
+	// 	}
+	// 	return nil, err
+	// }
+
+	// bufNode = []byte("+OK")
 
 	// check moved or ask
 	moved, ask, addr := redisHasMovedError(bufNode)
@@ -151,6 +184,21 @@ func (c *ClusterPool) writeAction(addr string, msg []byte) ([]byte, error) {
 	}
 
 	return bufNode, nil
+}
+
+func (c *ClusterPool) readTest(conn net.Conn, result chan []byte) {
+	bufc := respreader.NewReader(conn)
+	bufNode, err := bufc.ReadObject()
+	if err != nil {
+		logrus.Errorln(err)
+		if err == io.EOF {
+			logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
+			// send to channel for reconnect
+			c.reconn <- conn
+		}
+	}
+
+	result <- bufNode
 }
 
 func (c *ClusterPool) getRandomNode(clusterIndex int) (string, error) {
