@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -74,28 +72,29 @@ func (c *channelPool) getConnsAndFactory() (chan net.Conn, Factory) {
 // connection available in the pool, a new connection will be created via the
 // Factory() method.
 func (c *channelPool) get() (net.Conn, error) {
-	conns, factory := c.getConnsAndFactory()
+
+	conns, _ := c.getConnsAndFactory()
 	if conns == nil {
 		return nil, ErrClosed
 	}
 
 	// check pool capacity
-	go func() {
-		c.mu.Lock()
-		defer c.mu.Unlock()
+	// go func() {
+	// 	c.mu.Lock()
+	// 	defer c.mu.Unlock()
 
-		if cap(c.conns) >= c.connCount {
-			return
-		}
+	// 	if cap(c.conns) >= c.connCount {
+	// 		return
+	// 	}
 
-		conn, err := factory()
-		if err != nil {
-			logrus.Errorln(err)
-			return
-		}
-		c.connCount++
-		c.conns <- conn
-	}()
+	// 	conn, err := factory()
+	// 	if err != nil {
+	// 		logrus.Errorln(err)
+	// 		return
+	// 	}
+	// 	c.connCount++
+	// 	c.conns <- conn
+	// }()
 
 	// wrap our connections with out custom net.Conn implementation (wrapConn
 	// method) that puts the connection back to the pool if it's closed.
@@ -115,17 +114,20 @@ func (c *channelPool) get() (net.Conn, error) {
 // put puts the connection back to the pool. If the pool is full or closed,
 // conn is simply closed. A nil conn will be rejected.
 func (c *channelPool) put(conn net.Conn) error {
+
+	// check
 	if conn == nil {
 		return errors.New("connection is nil. rejecting")
 	}
 
+	// lock
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// if c.conns == nil {
-	// 	// pool is closed, close passed connection
-	// 	return conn.Close()
-	// }
+	if c.conns == nil {
+		// pool is closed, close passed connection
+		return conn.Close()
+	}
 
 	// put the resource back into the pool. If the pool is full, this will
 	// block and the default case will be executed.
