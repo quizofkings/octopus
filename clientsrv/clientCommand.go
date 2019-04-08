@@ -140,8 +140,8 @@ func (c *clientInfo) getClient(uniqueID string) *client {
 		exist bool
 	)
 
-	c.rwmutex.RLock()
-	defer c.rwmutex.RUnlock()
+	c.rwmutex.Lock() // R
+	defer c.rwmutex.Unlock()
 
 	if cl, exist = c.clients[uniqueID]; !exist {
 		return nil

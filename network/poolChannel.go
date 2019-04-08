@@ -19,8 +19,9 @@ type pool interface {
 }
 
 type channelPool struct {
-	mu    sync.RWMutex
-	conns chan net.Conn
+	mu        sync.RWMutex
+	conns     chan net.Conn
+	connCount int
 
 	// net.Conn generator
 	factory Factory
@@ -37,17 +38,22 @@ func newChannelPool(initialCap, maxCap int, factory Factory) (pool, error) {
 
 	c := &channelPool{
 		conns:   make(chan net.Conn, maxCap),
+		mu:      sync.RWMutex{},
 		factory: factory,
 	}
 
 	// create initial connections, if something goes wrong,
 	// just close the pool error out.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	for i := 0; i < initialCap; i++ {
 		conn, err := factory()
 		if err != nil {
 			c.Close()
 			return nil, fmt.Errorf("factory is not able to fill the pool, %s", err)
 		}
+		c.connCount++
 		c.conns <- conn
 	}
 
@@ -71,19 +77,29 @@ func (c *channelPool) get() (net.Conn, error) {
 		return nil, ErrClosed
 	}
 
+	// check pool capacity
+	go func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		if cap(c.conns) > c.connCount+1 {
+			return
+		}
+
+		conn, err := factory()
+		if err != nil {
+			return
+		}
+		c.connCount++
+		c.conns <- conn
+	}()
+
 	// wrap our connections with out custom net.Conn implementation (wrapConn
 	// method) that puts the connection back to the pool if it's closed.
 	select {
 	case conn := <-conns:
 		if conn == nil {
 			return nil, ErrClosed
-		}
-
-		return c.wrapConn(conn), nil
-	default:
-		conn, err := factory()
-		if err != nil {
-			return nil, err
 		}
 
 		return c.wrapConn(conn), nil

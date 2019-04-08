@@ -13,7 +13,7 @@ type poolConn struct {
 	unusable bool
 }
 
-func (p *poolConn) close() error {
+func (p *poolConn) Close() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

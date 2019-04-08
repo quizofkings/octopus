@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"io"
 	"math/rand"
 	"net"
 
@@ -78,6 +79,7 @@ func (c *ClusterPool) AddNode(node string) error {
 	}
 
 	p, err := newChannelPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
+		logrus.Infof("create new connection, remoteAddr:%s", node)
 		return net.Dial("tcp", node)
 	})
 	if err != nil {
@@ -94,15 +96,23 @@ func (c *ClusterPool) AddNode(node string) error {
 func (c *ClusterPool) Write(index int, msg []byte) ([]byte, error) {
 
 	// get cluster node connection from pool
-	conn, err := c.getRandomNode(index)
+	addr, err := c.getRandomNode(index)
 	if err != nil {
 		return nil, err
 	}
 
-	// variable
-	var movedCount int
+	return c.writeAction(addr, msg)
+}
 
-RETRYCMD:
+func (c *ClusterPool) writeAction(addr string, msg []byte) ([]byte, error) {
+
+	// get connection
+	conn, err := c.conns[addr].get()
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
 	// write into connection
 	if _, err := conn.Write(msg); err != nil {
 		logrus.Errorln(err)
@@ -121,36 +131,33 @@ RETRYCMD:
 	bufNode, err := bufc.ReadObject()
 	if err != nil {
 		logrus.Errorln(err)
-		// if err == io.EOF {
-		logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
-		// send to channel for reconnect
-		c.reconn <- conn
-		// }
+		if err == io.EOF {
+			logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
+			// send to channel for reconnect
+			c.reconn <- conn
+		}
 		return nil, err
 	}
 
 	// check moved or ask
 	moved, ask, addr := redisHasMovedError(bufNode)
-	if (moved || ask) && maxMoved > movedCount {
+	if moved || ask {
 		if err := c.AddNode(addr); err != nil {
 			logrus.Errorln(err)
 			return nil, err
 		}
 
-		conn, _ = c.conns[addr].get()
-
-		movedCount++
-		goto RETRYCMD
+		return c.writeAction(addr, msg)
 	}
 
 	return bufNode, nil
 }
 
-func (c *ClusterPool) getRandomNode(clusterIndex int) (net.Conn, error) {
+func (c *ClusterPool) getRandomNode(clusterIndex int) (string, error) {
 
 	// check requested index
 	if clusterIndex > len(config.Reader.Clusters)-1 {
-		return nil, errors.New("cluster index bigger than registered clusters")
+		return "", errors.New("cluster index bigger than registered clusters")
 	}
 
 	// get from config
@@ -164,5 +171,5 @@ func (c *ClusterPool) getRandomNode(clusterIndex int) (net.Conn, error) {
 		choosedNode = clusterNodes[0]
 	}
 
-	return c.conns[choosedNode].get()
+	return choosedNode, nil
 }
