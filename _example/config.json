@@ -1,41 +1,28 @@
 {
     "port": 9090,
     "pool": {
-        "maxcap": 10,
-        "initcap": 3
+        "maxcap": 30,
+        "initcap": 10
     },
     "clusters": [
         {
             "ismain": true,
-            "name": "qok-match",
+            "name": "qok-main",
             "nodes": [
-                "172.20.3.4:7001",
-                "172.20.3.10:7004"
+                "172.20.4.76:7003",
+                "172.20.4.74:7012"
             ],
-            "prefixes": [
-                "match:",
-                "stats:"
-            ]
+            "prefixes": []
         },
         {
             "ismain": false,
-            "name": "local-test",
+            "name": "qok-matching",
             "nodes": [
-                "localhost:6379"
+                "172.20.11.6:5001",
+                "172.20.11.8:5014"
             ],
             "prefixes": [
-                "pigfog:"
-            ]
-        },
-        {
-            "ismain": false,
-            "name": "qok-tournament",
-            "nodes": [
-                "10.5.150.5:7000",
-                "10.5.150.12:7003"
-            ],
-            "prefixes": [
-                "tournament:"
+                "game_matching:"
             ]
         }
     ]

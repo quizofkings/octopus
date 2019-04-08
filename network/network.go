@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 
@@ -100,11 +99,20 @@ func (c *ClusterPool) Write(index int, msg []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// variable
 	var movedCount int
+
 RETRYCMD:
 	// write into connection
 	if _, err := conn.Write(msg); err != nil {
 		logrus.Errorln(err)
+
+		// close the underlying connection instead of returning it to pool
+		if pc, ok := conn.(*poolConn); ok {
+			pc.markUnusable()
+			pc.Close()
+		}
+
 		return nil, err
 	}
 
@@ -113,10 +121,11 @@ RETRYCMD:
 	bufNode, err := bufc.ReadObject()
 	if err != nil {
 		logrus.Errorln(err)
-		if err == io.EOF {
-			// send to channel for reconnect
-			c.reconn <- conn
-		}
+		// if err == io.EOF {
+		logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
+		// send to channel for reconnect
+		c.reconn <- conn
+		// }
 		return nil, err
 	}
 
@@ -150,7 +159,7 @@ func (c *ClusterPool) getRandomNode(clusterIndex int) (net.Conn, error) {
 	var choosedNode string
 	if lnClusterNodes > 1 {
 		// choose randomly
-		choosedNode = clusterNodes[rand.Intn(lnClusterNodes-1)]
+		choosedNode = clusterNodes[rand.Intn(lnClusterNodes)]
 	} else {
 		choosedNode = clusterNodes[0]
 	}

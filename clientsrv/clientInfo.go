@@ -12,20 +12,20 @@ import (
 type client struct {
 	incoming   chan []byte
 	outgoing   chan []byte
-	disconnect chan int64
+	disconnect chan string
 	reader     *bufio.Reader
 	writer     *bufio.Writer
 }
 
 //newClient create new client
-func newClient(connection net.Conn, uniqueID int64) *client {
+func newClient(connection net.Conn, uniqueID string) *client {
 	writer := bufio.NewWriter(connection)
 	reader := bufio.NewReader(connection)
 
 	clientInf := &client{
 		incoming:   make(chan []byte),
 		outgoing:   make(chan []byte),
-		disconnect: make(chan int64),
+		disconnect: make(chan string),
 		reader:     reader,
 		writer:     writer,
 	}
@@ -39,13 +39,13 @@ func newClient(connection net.Conn, uniqueID int64) *client {
 	return clientInf
 }
 
-func (c *client) healthPing(connection net.Conn, uniqueID int64) {
+func (c *client) healthPing(connection net.Conn, uniqueID string) {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			tmp := make([]byte, 12)
+			tmp := make([]byte, 128)
 			_, err := connection.Read(tmp)
 			if err == io.EOF {
 				c.flush()
@@ -68,7 +68,7 @@ func (c *client) listen() {
 
 func (c *client) Read() {
 	for {
-		tmp := make([]byte, 512)
+		tmp := make([]byte, 1024)
 		_, err := c.reader.Read(tmp)
 		if err == io.EOF {
 			return
