@@ -34,7 +34,7 @@ type RESPReader struct {
 //NewReader create new reader
 func NewReader(reader io.Reader) *RESPReader {
 	return &RESPReader{
-		Reader: bufio.NewReader(reader),
+		bufio.NewReader(reader),
 	}
 }
 

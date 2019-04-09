@@ -2,7 +2,6 @@ package network
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"net"
 
@@ -10,58 +9,78 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type node struct {
-	incoming chan []byte
-	outgoing chan []byte
-	reader   *bufio.Reader
-	writer   *bufio.Writer
+//Node struct
+type Node struct {
+	net.Conn
+
+	// parent pool
+	p *Pool
+
+	// io channel
+	Incoming   chan []byte
+	Outgoing   chan []byte
+	WriteError chan error
+
+	// bufio rw
+	reader *respreader.RESPReader
+	writer *bufio.Writer
 }
 
-//newNode create new node
-func newNode(conn net.Conn) *node {
-	logrus.Infoln("new node")
-	writer := bufio.NewWriter(conn)
-	reader := bufio.NewReader(conn)
-
-	nodeInf := &node{
-		incoming: make(chan []byte),
-		outgoing: make(chan []byte),
-		reader:   reader,
-		writer:   writer,
+//NewNode create new node
+func NewNode(conn *net.Conn, pool *Pool) *Node {
+	nodeInf := &Node{
+		Incoming:   make(chan []byte),
+		Outgoing:   make(chan []byte),
+		WriteError: make(chan error),
+		reader:     respreader.NewReader(*conn), // Size ^-^
+		writer:     bufio.NewWriter(*conn),      // Size ^-^
+		p:          pool,
+		Conn:       *conn,
 	}
 
-	// start listening (read/write)
+	// start listening
 	nodeInf.listen()
 
 	return nodeInf
 }
 
-func (c *node) listen() {
-	go c.Read()
-	go c.Write()
+//Close close node
+func (n *Node) Close() error {
+	logrus.Infoln("close node, put back into connection queue channel ")
+	return n.p.Put(n)
+}
+
+func (n *Node) listen() {
+	go n.Read()
+	go n.Write()
+}
+
+func (n *Node) flush() {
+	close(n.Incoming)
+	close(n.Outgoing)
 }
 
 //Read method
-func (c *node) Read() {
+func (n *Node) Read() {
 	for {
-		fmt.Println("readdreadread")
-
-		bufc := respreader.NewReader(c.reader)
-		bufNode, err := bufc.ReadObject()
+		rec, err := n.reader.ReadObject()
 		if err == io.EOF {
 			return
 		}
-		c.incoming <- bufNode
+		n.Incoming <- rec
+		// n.Incoming <- []byte("+OK\n")
+		// return
 	}
 }
 
 //Write method
-func (c *node) Write() {
-	for data := range c.outgoing {
-		_, err := c.writer.Write(data)
+func (n *Node) Write() {
+	for data := range n.Outgoing {
+		_, err := n.writer.Write(data)
 		if err != nil {
 			logrus.Errorln(err)
+			n.WriteError <- err
 		}
-		c.writer.Flush()
+		n.writer.Flush()
 	}
 }

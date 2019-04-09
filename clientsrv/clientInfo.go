@@ -40,12 +40,12 @@ func newClient(connection net.Conn, uniqueID string) *client {
 }
 
 func (c *client) healthPing(connection net.Conn, uniqueID string) {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			tmp := make([]byte, 128)
+			tmp := make([]byte, 1024)
 			_, err := connection.Read(tmp)
 			if err == io.EOF {
 				c.flush()
@@ -68,12 +68,12 @@ func (c *client) listen() {
 
 func (c *client) Read() {
 	for {
-		tmp := make([]byte, 1024)
-		_, err := c.reader.Read(tmp)
+		tmp := make([]byte, 2048)
+		n, err := c.reader.Read(tmp)
 		if err == io.EOF {
 			return
 		}
-		c.incoming <- tmp
+		c.incoming <- tmp[:n]
 	}
 }
 

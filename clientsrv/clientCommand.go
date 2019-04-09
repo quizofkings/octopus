@@ -8,7 +8,7 @@ import (
 
 	"github.com/quizofkings/octopus/config"
 	"github.com/quizofkings/octopus/network"
-	uuid "github.com/satori/go.uuid"
+	"github.com/quizofkings/octopus/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,8 +35,10 @@ func New() ClientCommand {
 //Join join new client
 func (c *clientInfo) Join(conn net.Conn) {
 
+	// generate random hash
+	uniqueID := utils.RandStringRunes(15)
+
 	// handler
-	uniqueID := uuid.Must(uuid.NewV4()).String()
 	client := newClient(conn, uniqueID)
 	c.rwmutex.Lock()
 	c.clients[uniqueID] = client
@@ -61,8 +63,8 @@ func (c *clientInfo) receiveChan(uniqueID string) {
 		// select
 		select {
 		case msg := <-cl.incoming:
-			c.receiveCmd(c.getClient(uniqueID), msg)
-		case <-c.getClient(uniqueID).disconnect:
+			c.receiveCmd(cl, msg)
+		case <-cl.disconnect:
 			return
 		}
 	}
@@ -70,10 +72,16 @@ func (c *clientInfo) receiveChan(uniqueID string) {
 
 func (c *clientInfo) healthCheck(uniqueID string) {
 	for {
+		// check key exist
+		cl := c.getClient(uniqueID)
+		if cl == nil {
+			return
+		}
+
 		select {
-		case uniqueID := <-c.getClient(uniqueID).disconnect:
-			if c.getClient(uniqueID) != nil {
-				close(c.getClient(uniqueID).disconnect)
+		case uniqueID := <-cl.disconnect:
+			if cl != nil {
+				close(cl.disconnect)
 
 				// delete from clients
 				c.rwmutex.Lock()
@@ -124,6 +132,9 @@ func (c *clientInfo) receiveCmd(client *client, msg []byte) {
 		clusterIndex = config.Reader.MainIndex
 	}
 
+	if len(msg) == 0 {
+		return
+	}
 	nodeResp, err := c.gate.Write(clusterIndex, msg)
 	if err != nil {
 		return
@@ -140,8 +151,9 @@ func (c *clientInfo) getClient(uniqueID string) *client {
 		exist bool
 	)
 
-	c.rwmutex.Lock() // R
-	defer c.rwmutex.Unlock()
+	// fan-in
+	c.rwmutex.RLock() // R
+	defer c.rwmutex.RUnlock()
 
 	if cl, exist = c.clients[uniqueID]; !exist {
 		return nil
