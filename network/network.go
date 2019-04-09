@@ -2,12 +2,10 @@ package network
 
 import (
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 
 	"github.com/quizofkings/octopus/config"
-	"github.com/quizofkings/octopus/respreader"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,12 +16,11 @@ const (
 //NetCommands network interface
 type NetCommands interface {
 	Write(index int, msg []byte) ([]byte, error)
-	AddNode(node string) error
 }
 
 //ClusterPool struct
 type ClusterPool struct {
-	conns  map[string]pool // addr => pool
+	conns  map[string]Pool // addr => pool
 	reconn chan net.Conn
 }
 
@@ -39,7 +36,7 @@ func New() NetCommands {
 	logrus.Infoln("create node(s) connection")
 
 	var clusterPoolMap = ClusterPool{
-		conns:  map[string]pool{},
+		conns:  map[string]Pool{},
 		reconn: make(chan net.Conn),
 	}
 
@@ -78,7 +75,7 @@ func (c *ClusterPool) AddNode(node string) error {
 		return nil
 	}
 
-	p, err := newChannelPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
+	p, err := NewChannelPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
 		logrus.Infof("create new connection, remoteAddr:%s", node)
 		return net.Dial("tcp", node)
 	})
@@ -93,10 +90,10 @@ func (c *ClusterPool) AddNode(node string) error {
 }
 
 //Write write message into connection
-func (c *ClusterPool) Write(index int, msg []byte) ([]byte, error) {
+func (c *ClusterPool) Write(clusterIndex int, msg []byte) ([]byte, error) {
 
 	// get cluster node connection from pool
-	addr, err := c.getRandomNode(index)
+	addr, err := c.getRandomNode(clusterIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -104,40 +101,38 @@ func (c *ClusterPool) Write(index int, msg []byte) ([]byte, error) {
 	return c.writeAction(addr, msg)
 }
 
-func (c *ClusterPool) writeAction(addr string, msg []byte) ([]byte, error) {
+func (c *ClusterPool) writeAction(nodeAddr string, msg []byte) ([]byte, error) {
 
-	// get connection
-	conn, err := c.conns[addr].get()
-	if err != nil {
-		return nil, err
-	}
+	// variable
+	bufNode := []byte{}
+
+	// get node from octopool ^-^
+	octoPool := c.conns[nodeAddr]
+	conn, err := octoPool.Get()
 	defer conn.Close()
-
-	// write into connection
-	if _, err := conn.Write(msg); err != nil {
-		logrus.Errorln(err)
-
-		// close the underlying connection instead of returning it to pool
-		if pc, ok := conn.(*poolConn); ok {
-			pc.markUnusable()
-			pc.Close()
-		}
-
-		return nil, err
-	}
-
-	// reader */*~
-	bufc := respreader.NewReader(conn)
-	bufNode, err := bufc.ReadObject()
 	if err != nil {
-		logrus.Errorln(err)
-		if err == io.EOF {
-			logrus.Warnf("connection has been lost, remoteAddr:%s", conn.RemoteAddr().String())
-			// send to channel for reconnect
-			c.reconn <- conn
-		}
 		return nil, err
 	}
+
+	node := newNode(conn)
+	defer node.Close()
+	node.outgoing <- msg
+
+	// reader := respreader.NewReader(conn)
+	// recChan := make(chan []byte)
+	// go func() {
+	// 	for {
+	// 		msg, err := reader.ReadObject()
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
+	// 		recChan <- msg
+	// 	}
+	// }()
+
+	bufNode = <-node.incoming
+
+	// bufNode = <-node.incoming //[]byte("+PONG\n") //<-recChan
 
 	// check moved or ask
 	moved, ask, addr := redisHasMovedError(bufNode)

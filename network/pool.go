@@ -1,33 +1,27 @@
 package network
 
 import (
+	"errors"
 	"net"
-	"sync"
 )
 
-//poolConn struct
-type poolConn struct {
-	net.Conn
-	mu       sync.RWMutex
-	c        *channelPool
-	unusable bool
-}
+var (
+	// ErrClosed is the error resulting if the pool is closed via pool.Close().
+	ErrClosed = errors.New("pool is closed")
+)
 
-func (p *poolConn) Close() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+// Pool interface describes a pool implementation. A pool should have maximum
+// capacity. An ideal pool is threadsafe and easy to use.
+type Pool interface {
+	// Get returns a new connection from the pool. Closing the connections puts
+	// it back to the Pool. Closing it when the pool is destroyed or full will
+	// be counted as an error.
+	Get() (net.Conn, error)
 
-	if p.unusable {
-		if p.Conn != nil {
-			return p.Conn.Close()
-		}
-		return nil
-	}
-	return p.c.put(p.Conn)
-}
+	// Close closes the pool and all its connections. After Close() the pool is
+	// no longer usable.
+	Close()
 
-func (p *poolConn) markUnusable() {
-	p.mu.Lock()
-	p.unusable = true
-	p.mu.Unlock()
+	// Len returns the current number of connections of the pool.
+	Len() int
 }
