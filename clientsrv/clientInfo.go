@@ -68,25 +68,25 @@ func (c *client) listen() {
 }
 
 func (c *client) Read() {
-	// for {
-	// 	tmp := make([]byte, 2048)
-	// 	n, err := c.reader.Read(tmp)
-	// 	if err == io.EOF {
-	// 		return
-	// 	}
-	// 	c.incoming <- tmp[:n]
-	// }
 	for {
-
-		rec, err := c.reader.ReadObject()
+		tmp := make([]byte, 512)
+		n, err := c.reader.Read(tmp)
 		if err == io.EOF {
-			continue
+			return
 		}
-		if len(rec) == 0 {
-			continue
-		}
-		c.incoming <- rec
+		c.incoming <- tmp[:n]
 	}
+	// for {
+
+	// 	rec, err := c.reader.ReadObject()
+	// 	if err == io.EOF {
+	// 		continue
+	// 	}
+	// 	if len(rec) == 0 {
+	// 		continue
+	// 	}
+	// 	c.incoming <- rec
+	// }
 }
 
 func (c *client) Write() {

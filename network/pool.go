@@ -101,8 +101,9 @@ func (p *Pool) Get() (*Node, error) {
 		return p.createNode()
 	}
 
-	nodeInf := p.connsQueue[len(p.connsQueue)-1]
-	p.connsQueue = p.connsQueue[:len(p.connsQueue)-1]
+	// LPOP
+	nodeInf := p.connsQueue[0]
+	p.connsQueue = p.connsQueue[1:len(p.connsQueue)]
 	return nodeInf, nil
 }
 
@@ -122,6 +123,7 @@ func (p *Pool) Put(node *Node) error {
 		return node.Conn.Close()
 	}
 
+	// RPUSH
 	p.connsQueue = append(p.connsQueue, node)
 	return nil
 }

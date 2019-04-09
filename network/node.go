@@ -2,6 +2,7 @@ package network
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 
@@ -44,6 +45,15 @@ func NewNode(conn *net.Conn, pool *Pool) *Node {
 	return nodeInf
 }
 
+// func (n *Node) reConnect() {
+// 	logrus.Warningln("node reconnecting")
+// 	var err error
+// 	n.Conn, err = net.Dial("tcp", n.Conn.RemoteAddr().String())
+// 	if err != nil {
+// 		logrus.Errorln(err)
+// 	}
+// }
+
 //Close close node
 func (n *Node) Close() error {
 	logrus.Infoln("close node, put back into connection queue channel ")
@@ -64,9 +74,18 @@ func (n *Node) flush() {
 func (n *Node) Read() {
 	for {
 		rec, err := n.reader.ReadObject()
-		if err == io.EOF {
-			continue
+		fmt.Println("OMAD", rec, err)
+		if err != nil {
+			logrus.Errorln(err)
+			if err == io.EOF {
+				break
+			}
+			return
 		}
+
+		// if len(rec) == 0 {
+		// 	continue
+		// }
 		n.Incoming <- rec
 		// n.Incoming <- []byte("+OK\n")
 		// return
