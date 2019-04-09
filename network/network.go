@@ -20,7 +20,7 @@ type NetCommands interface {
 
 //ClusterPool struct
 type ClusterPool struct {
-	conns  map[string]*Pool // addr => pool
+	conns  map[string]Pool // addr => pool
 	reconn chan net.Conn
 }
 
@@ -36,7 +36,7 @@ func New() NetCommands {
 	logrus.Infoln("create node(s) connection")
 
 	var clusterPoolMap = ClusterPool{
-		conns:  map[string]*Pool{},
+		conns:  map[string]Pool{},
 		reconn: make(chan net.Conn),
 	}
 
@@ -75,7 +75,7 @@ func (c *ClusterPool) AddNode(node string) error {
 		return nil
 	}
 
-	p, err := NewOctoPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
+	p, err := NewChannelPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
 		logrus.Infof("create new connection, remoteAddr:%s", node)
 		return net.Dial("tcp", node)
 	})
@@ -108,26 +108,31 @@ func (c *ClusterPool) writeAction(nodeAddr string, msg []byte) ([]byte, error) {
 
 	// get node from octopool ^-^
 	octoPool := c.conns[nodeAddr]
-	node, err := octoPool.Get()
-	defer node.Close()
+	conn, err := octoPool.Get()
+	defer conn.Close()
 	if err != nil {
 		return nil, err
 	}
 
-	// write
-	node.Outgoing <- msg
+	node := newNode(conn)
+	defer node.Close()
+	node.outgoing <- msg
 
-	// // read
-	// select {
-	// case recv := <-node.Incoming:
-	// 	bufNode = recv
-	// case err := <-node.WriteError:
-	// 	return nil, err
-	// 	// timeout handler
-	// 	// case <-time.After(2 * time.Second):
-	// 	// 	return nil, errors.New("Timeout")
-	// }
-	bufNode = []byte("+PONG\n")
+	// reader := respreader.NewReader(conn)
+	// recChan := make(chan []byte)
+	// go func() {
+	// 	for {
+	// 		msg, err := reader.ReadObject()
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
+	// 		recChan <- msg
+	// 	}
+	// }()
+
+	bufNode = <-node.incoming
+
+	// bufNode = <-node.incoming //[]byte("+PONG\n") //<-recChan
 
 	// check moved or ask
 	moved, ask, addr := redisHasMovedError(bufNode)

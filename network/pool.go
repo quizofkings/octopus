@@ -2,161 +2,26 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"net"
-	"sync"
 )
-
-//PoolInterface interface
-type PoolInterface interface {
-	// Close closes the pool and all its connections
-	Close()
-
-	// Get returns a new connection from the pool
-	Get() (*Node, error)
-
-	// Put back node into connection queue channel
-	Put(node *Node) error
-}
-
-//Pool struct
-type Pool struct {
-	// implement
-	PoolInterface
-
-	// connection channel queue
-	connsQueue []*Node
-
-	// maximum channel cap
-	maxCap int
-
-	// initialize channel cap
-	initCap int
-
-	// active connection count
-	activeConn int
-
-	// connection generator
-	factory Factory
-
-	// rw lock
-	mu sync.RWMutex
-}
 
 var (
-	// errors
-	errInvalidCapactiry = errors.New("invalid capacity settings")
-	errConnNilRejecting = errors.New("connection is nil. rejecting")
-
-	// str
-	errStrFactoryFill = "factory is not able to fill the pool:"
+	// ErrClosed is the error resulting if the pool is closed via pool.Close().
+	ErrClosed = errors.New("pool is closed")
 )
 
-//Factory type of factory method
-type Factory func() (net.Conn, error)
+// Pool interface describes a pool implementation. A pool should have maximum
+// capacity. An ideal pool is threadsafe and easy to use.
+type Pool interface {
+	// Get returns a new connection from the pool. Closing the connections puts
+	// it back to the Pool. Closing it when the pool is destroyed or full will
+	// be counted as an error.
+	Get() (net.Conn, error)
 
-// NewOctoPool create new octopool
-// Octopool is pool of net.Conn with init/max capacity. If there is no new connection
-// available in the pool, a new connection will be created via the Factory()
-func NewOctoPool(initCap, maxCap int, factory Factory) (*Pool, error) {
+	// Close closes the pool and all its connections. After Close() the pool is
+	// no longer usable.
+	Close()
 
-	// check init/max capacity
-	if initCap < 0 || maxCap <= 0 || initCap > maxCap {
-		return nil, errInvalidCapactiry
-	}
-
-	// pool initialize
-	p := &Pool{
-		connsQueue: []*Node{},
-		factory:    factory,
-		maxCap:     maxCap,
-		initCap:    initCap,
-	}
-
-	// create initial connections
-	for i := 0; i < initCap; i++ {
-
-		// call factory
-		node, err := p.createNode()
-		if err != nil {
-			p.Close()
-			return nil, fmt.Errorf("%s %s", errStrFactoryFill, err)
-		}
-
-		// add node to queue channel
-		p.connsQueue = append(p.connsQueue, node)
-	}
-
-	return p, nil
-}
-
-//Get node connection from queue channel
-func (p *Pool) Get() (*Node, error) {
-
-	// read lock
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-RETRY:
-	if len(p.connsQueue) == 0 {
-		return p.createNode()
-	}
-
-	nodeInf := p.connsQueue[len(p.connsQueue)-1]
-	p.connsQueue = p.connsQueue[:len(p.connsQueue)-1]
-
-	if nodeInf.unusable {
-		goto RETRY
-	}
-
-	return nodeInf, nil
-}
-
-//Put back node into connection queue channel
-func (p *Pool) Put(node *Node) error {
-
-	// check node connection
-	if node.Conn == nil {
-		return errConnNilRejecting
-	}
-
-	// write lock
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if len(p.connsQueue) == p.maxCap {
-		return node.Conn.Close()
-	}
-
-	if !node.unusable {
-		p.connsQueue = append(p.connsQueue, node)
-	}
-	return nil
-}
-
-//createNode create new node connection
-func (p *Pool) createNode() (*Node, error) {
-
-	// call factory
-	conn, err := p.factory()
-	if err != nil {
-		p.Close()
-		return nil, fmt.Errorf("%s %s", errStrFactoryFill, err)
-	}
-
-	return NewNode(&conn, p), nil
-}
-
-//Close pool
-func (p *Pool) Close() {
-
-	// clear values
-	p.mu.Lock()
-	p.factory = nil
-	p.mu.Unlock()
-
-	// get node from queue channel and close that
-	for _, node := range p.connsQueue {
-		node.Conn.Close()
-	}
+	// Len returns the current number of connections of the pool.
+	Len() int
 }

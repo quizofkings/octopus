@@ -1,7 +1,7 @@
 {
     "port": 9090,
     "pool": {
-        "maxcap": 3,
+        "maxcap": 10,
         "initcap": 3
     },
     "clusters": [
@@ -9,7 +9,7 @@
             "ismain": true,
             "name": "qok-main",
             "nodes": [
-                "172.20.4.76:7003",
+                "172.20.4.76:7001",
                 "172.20.4.74:7012"
             ],
             "prefixes": []

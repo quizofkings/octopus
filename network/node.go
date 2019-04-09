@@ -9,101 +9,65 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//Node struct
-type Node struct {
-	net.Conn
-
-	// parent pool
-	p *Pool
-
-	// io channel
-	Incoming   chan []byte
-	Outgoing   chan []byte
-	WriteError chan error
-
-	// unusable
-	unusable bool
-
-	// bufio rw
-	reader *respreader.RESPReader
-	writer *bufio.Writer
+type node struct {
+	incoming chan []byte
+	outgoing chan []byte
+	disc     chan string
+	reader   *respreader.RESPReader
+	writer   *bufio.Writer
 }
 
-//NewNode create new node
-func NewNode(conn *net.Conn, pool *Pool) *Node {
+//newNode create new node
+func newNode(conn net.Conn) *node {
 
-	// keep alive
-	(*conn).(*net.TCPConn).SetKeepAlive(true)
+	// reader-writer
+	writer := bufio.NewWriter(conn)
+	reader := respreader.NewReader(conn)
 
-	// node config
-	nodeInf := &Node{
-		Incoming:   make(chan []byte),
-		Outgoing:   make(chan []byte),
-		WriteError: make(chan error),
-		reader:     respreader.NewReader(*conn), // Size ^-^
-		writer:     bufio.NewWriter(*conn),      // Size ^-^
-		p:          pool,
-		Conn:       *conn,
+	nodeInf := &node{
+		incoming: make(chan []byte),
+		outgoing: make(chan []byte),
+		disc:     make(chan string),
+		reader:   reader,
+		writer:   writer,
 	}
 
-	// start listening
-	nodeInf.listen()
+	// start handling message
+	// go nodeInf.handleMessage()
+
+	// i/o start
+	go nodeInf.Read()
+	go nodeInf.Write()
 
 	return nodeInf
 }
 
-//Close close node
-func (n *Node) Close() error {
-	logrus.Infoln("close node, put back into connection queue channel ")
-	return n.p.Put(n)
-}
-
-func (n *Node) listen() {
-	go n.Read()
-	go n.Write()
-}
-
-func (n *Node) flush() {
-	close(n.Incoming)
-	close(n.Outgoing)
-}
-
-//Read method
-func (n *Node) Read() {
-	for {
-		rec, err := n.reader.ReadObject()
-		if err == io.EOF {
-			n.unusable = true
-			return
-		}
-		n.Incoming <- rec
-	}
+//Read read msg
+func (c *node) Read() {
 	// for {
-	// 	fmt.Println("node.Read")
-	// 	rec, err := n.reader.ReadObject()
-	// 	n.Incoming <- rec
-	// 	if err != nil {
-	// 		// n.unusable = true
-	// 		logrus.WithField("unsusable", "yes").Errorln(err)
-
-	// 		return
-	// 	}
-	// 	// n.Incoming <- []byte("+OK\n")
+	msg, err := c.reader.ReadObject()
+	if err == io.EOF {
+		return
+	}
+	c.incoming <- msg
 	// }
 }
 
-//Write method
-func (n *Node) Write() {
-	for data := range n.Outgoing {
-		if len(data) == 0 {
-			return
-		}
-		_, err := n.writer.Write(data)
+//Write write msg
+func (c *node) Write() {
+	for data := range c.outgoing {
+		_, err := c.writer.Write(data)
 		if err != nil {
-			logrus.WithField("mode", "write").Errorln(err)
-			n.WriteError <- err
+			logrus.Errorln(err)
 			return
 		}
-		n.writer.Flush()
+		c.writer.Flush()
 	}
+}
+
+func (c *node) Close() {
+	close(c.incoming)
+	close(c.outgoing)
+	c.reader = nil
+	c.writer = nil
 }
