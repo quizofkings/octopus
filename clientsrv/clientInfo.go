@@ -2,6 +2,7 @@ package clientsrv
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -11,6 +12,7 @@ import (
 )
 
 type client struct {
+	uniqueID   string
 	incoming   chan []byte
 	outgoing   chan []byte
 	disconnect chan string
@@ -20,6 +22,8 @@ type client struct {
 
 //newClient create new client
 func newClient(connection net.Conn, uniqueID string) *client {
+
+	// reader-writer
 	writer := bufio.NewWriter(connection)
 	reader := respreader.NewReader(connection)
 
@@ -29,30 +33,32 @@ func newClient(connection net.Conn, uniqueID string) *client {
 		disconnect: make(chan string),
 		reader:     reader,
 		writer:     writer,
+		uniqueID:   uniqueID,
 	}
 
 	// start listening (read/write)
 	clientInf.listen()
 
 	// pinger
-	go clientInf.healthPing(connection, uniqueID)
+	// go clientInf.healthPing(connection)
 
 	return clientInf
 }
 
-func (c *client) healthPing(connection net.Conn, uniqueID string) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+func (c *client) healthPing(connection net.Conn) {
+	ping := time.NewTimer(pingInterval)
+	defer ping.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-ping.C:
 			tmp := make([]byte, 1024)
 			_, err := connection.Read(tmp)
 			if err == io.EOF {
 				c.flush()
-				c.disconnect <- uniqueID
+				c.disconnect <- c.uniqueID
 				return
 			}
+			ping.Reset(pingInterval)
 		}
 	}
 }
@@ -68,29 +74,39 @@ func (c *client) listen() {
 }
 
 func (c *client) Read() {
-	for {
-		tmp := make([]byte, 512)
-		n, err := c.reader.Read(tmp)
-		if err == io.EOF {
-			return
-		}
-		c.incoming <- tmp[:n]
-	}
 	// for {
+	// 	tmp := make([]byte, 512)
+	// 	n, err := c.reader.Read(tmp)
+	// 	if err == io.EOF {
+	// 		return
+	// 	}
+	// 	fmt.Println("RECEIVED", tmp[:n])
+	// 	c.incoming <- tmp[:n]
+	// }
 
+	// for {
+	// 	fmt.Println("client.Read")
 	// 	rec, err := c.reader.ReadObject()
 	// 	if err == io.EOF {
-	// 		continue
-	// 	}
-	// 	if len(rec) == 0 {
-	// 		continue
+	// 		return
 	// 	}
 	// 	c.incoming <- rec
 	// }
+
+	for {
+		rec, err := c.reader.ReadObject()
+		fmt.Println(err)
+		if err == io.EOF {
+			return
+		}
+		fmt.Println(string(rec), rec)
+		c.incoming <- rec
+	}
 }
 
 func (c *client) Write() {
 	for data := range c.outgoing {
+		fmt.Println("client.Write")
 		_, err := c.writer.Write(data)
 		if err != nil {
 			logrus.Errorln(err)

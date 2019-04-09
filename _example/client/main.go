@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -17,23 +16,17 @@ func main() {
 		// PoolSize: 5,
 	})
 
-	rw := sync.Mutex{}
+RETRY:
 	count := 0
-	wg := &sync.WaitGroup{}
 	for i := 1; i <= 30; i++ {
 		if i%30 == 0 {
 			time.Sleep(2 * time.Second)
 		}
-		wg.Add(1)
-		go func(wg *sync.WaitGroup, i int) {
-			defer wg.Done()
-			rw.Lock()
-			count++
-			rw.Unlock()
+		go func(i int) {
 			fmt.Println(client.Ping().Result())
-		}(wg, i)
+		}(i)
 	}
 
-	wg.Wait()
 	fmt.Println(count)
+	goto RETRY
 }

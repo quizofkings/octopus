@@ -19,8 +19,8 @@ type ClientCommand interface {
 
 type clientInfo struct {
 	clients map[string]*client
-	rwmutex *sync.RWMutex
 	gate    network.NetCommands
+	rwmutex sync.RWMutex
 }
 
 //New create new client storage
@@ -28,7 +28,7 @@ func New() ClientCommand {
 	return &clientInfo{
 		clients: map[string]*client{},
 		gate:    network.New(),
-		rwmutex: &sync.RWMutex{},
+		rwmutex: sync.RWMutex{},
 	}
 }
 
@@ -49,11 +49,12 @@ func (c *clientInfo) Join(conn net.Conn) {
 
 	// goroutine receive and health check
 	go c.receiveChan(uniqueID)
-	go c.healthCheck(uniqueID)
+	// go c.healthCheck(uniqueID)
 }
 
 func (c *clientInfo) receiveChan(uniqueID string) {
 	for {
+		fmt.Println("receiveChan")
 		// check key exist
 		cl := c.getClient(uniqueID)
 		if cl == nil {
@@ -65,6 +66,7 @@ func (c *clientInfo) receiveChan(uniqueID string) {
 		case msg := <-cl.incoming:
 			c.receiveCmd(cl, msg)
 		case <-cl.disconnect:
+			logrus.Warnln("receive channel is closed")
 			return
 		}
 	}
@@ -72,6 +74,7 @@ func (c *clientInfo) receiveChan(uniqueID string) {
 
 func (c *clientInfo) healthCheck(uniqueID string) {
 	for {
+		fmt.Println("healthCheck")
 		// check key exist
 		cl := c.getClient(uniqueID)
 		if cl == nil {
@@ -82,7 +85,6 @@ func (c *clientInfo) healthCheck(uniqueID string) {
 		case uniqueID := <-cl.disconnect:
 			if cl != nil {
 				close(cl.disconnect)
-
 				// delete from clients
 				c.rwmutex.Lock()
 				delete(c.clients, uniqueID)
@@ -135,8 +137,11 @@ func (c *clientInfo) receiveCmd(client *client, msg []byte) {
 	if len(msg) == 0 {
 		return
 	}
+
+	// send to redis nodes
 	nodeResp, err := c.gate.Write(clusterIndex, msg)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 

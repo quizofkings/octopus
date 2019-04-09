@@ -103,6 +103,9 @@ func (c *ClusterPool) Write(clusterIndex int, msg []byte) ([]byte, error) {
 
 func (c *ClusterPool) writeAction(nodeAddr string, msg []byte) ([]byte, error) {
 
+	// variable
+	bufNode := []byte{}
+
 	// get node from octopool ^-^
 	octoPool := c.conns[nodeAddr]
 	node, err := octoPool.Get()
@@ -114,20 +117,17 @@ func (c *ClusterPool) writeAction(nodeAddr string, msg []byte) ([]byte, error) {
 	// write
 	node.Outgoing <- msg
 
-	// variable
-	bufNode := []byte{}
-
-	// read
-	select {
-	case recv := <-node.Incoming:
-		bufNode = recv
-		break
-	case err := <-node.WriteError:
-		return nil, err
-		// timeout handler
-		// case <-time.After(2 * time.Second):
-		// 	return nil, errors.New("Timeout")
-	}
+	// // read
+	// select {
+	// case recv := <-node.Incoming:
+	// 	bufNode = recv
+	// case err := <-node.WriteError:
+	// 	return nil, err
+	// 	// timeout handler
+	// 	// case <-time.After(2 * time.Second):
+	// 	// 	return nil, errors.New("Timeout")
+	// }
+	bufNode = []byte("+PONG\n")
 
 	// check moved or ask
 	moved, ask, addr := redisHasMovedError(bufNode)

@@ -2,7 +2,6 @@ package network
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"net"
 
@@ -22,6 +21,9 @@ type Node struct {
 	Outgoing   chan []byte
 	WriteError chan error
 
+	// unusable
+	unusable bool
+
 	// bufio rw
 	reader *respreader.RESPReader
 	writer *bufio.Writer
@@ -29,6 +31,11 @@ type Node struct {
 
 //NewNode create new node
 func NewNode(conn *net.Conn, pool *Pool) *Node {
+
+	// keep alive
+	(*conn).(*net.TCPConn).SetKeepAlive(true)
+
+	// node config
 	nodeInf := &Node{
 		Incoming:   make(chan []byte),
 		Outgoing:   make(chan []byte),
@@ -44,15 +51,6 @@ func NewNode(conn *net.Conn, pool *Pool) *Node {
 
 	return nodeInf
 }
-
-// func (n *Node) reConnect() {
-// 	logrus.Warningln("node reconnecting")
-// 	var err error
-// 	n.Conn, err = net.Dial("tcp", n.Conn.RemoteAddr().String())
-// 	if err != nil {
-// 		logrus.Errorln(err)
-// 	}
-// }
 
 //Close close node
 func (n *Node) Close() error {
@@ -74,31 +72,37 @@ func (n *Node) flush() {
 func (n *Node) Read() {
 	for {
 		rec, err := n.reader.ReadObject()
-		fmt.Println("OMAD", rec, err)
-		if err != nil {
-			logrus.Errorln(err)
-			if err == io.EOF {
-				break
-			}
+		if err == io.EOF {
+			n.unusable = true
 			return
 		}
-
-		// if len(rec) == 0 {
-		// 	continue
-		// }
 		n.Incoming <- rec
-		// n.Incoming <- []byte("+OK\n")
-		// return
 	}
+	// for {
+	// 	fmt.Println("node.Read")
+	// 	rec, err := n.reader.ReadObject()
+	// 	n.Incoming <- rec
+	// 	if err != nil {
+	// 		// n.unusable = true
+	// 		logrus.WithField("unsusable", "yes").Errorln(err)
+
+	// 		return
+	// 	}
+	// 	// n.Incoming <- []byte("+OK\n")
+	// }
 }
 
 //Write method
 func (n *Node) Write() {
 	for data := range n.Outgoing {
+		if len(data) == 0 {
+			return
+		}
 		_, err := n.writer.Write(data)
 		if err != nil {
-			logrus.Errorln(err)
+			logrus.WithField("mode", "write").Errorln(err)
 			n.WriteError <- err
+			return
 		}
 		n.writer.Flush()
 	}

@@ -24,9 +24,6 @@ type Pool struct {
 	// implement
 	PoolInterface
 
-	// rw lock
-	mu sync.RWMutex
-
 	// connection channel queue
 	connsQueue []*Node
 
@@ -41,6 +38,9 @@ type Pool struct {
 
 	// connection generator
 	factory Factory
+
+	// rw lock
+	mu sync.RWMutex
 }
 
 var (
@@ -97,13 +97,18 @@ func (p *Pool) Get() (*Node, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+RETRY:
 	if len(p.connsQueue) == 0 {
 		return p.createNode()
 	}
 
-	// LPOP
-	nodeInf := p.connsQueue[0]
-	p.connsQueue = p.connsQueue[1:len(p.connsQueue)]
+	nodeInf := p.connsQueue[len(p.connsQueue)-1]
+	p.connsQueue = p.connsQueue[:len(p.connsQueue)-1]
+
+	if nodeInf.unusable {
+		goto RETRY
+	}
+
 	return nodeInf, nil
 }
 
@@ -123,8 +128,9 @@ func (p *Pool) Put(node *Node) error {
 		return node.Conn.Close()
 	}
 
-	// RPUSH
-	p.connsQueue = append(p.connsQueue, node)
+	if !node.unusable {
+		p.connsQueue = append(p.connsQueue, node)
+	}
 	return nil
 }
 

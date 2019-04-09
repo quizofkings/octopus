@@ -31,14 +31,16 @@ var rootCmd = &cobra.Command{
 			ConsulKey: envConsulKey,
 		})
 
-		// create client storage
-		clientStorage := clientsrv.New()
-
+		// create server
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Reader.Port))
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer l.Close()
+
+		// create client storage
+		clientStorage := clientsrv.New()
+
 		for {
 			// Wait for a connection.
 			conn, err := l.Accept()
