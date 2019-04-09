@@ -88,7 +88,7 @@ func (c *clientInfo) healthCheck(uniqueID string) {
 				delete(c.clients, uniqueID)
 				c.rwmutex.Unlock()
 			}
-			logrus.Warnln(fmt.Sprintf("client disconnected count:%d, uuid:%s", len(c.clients), uniqueID))
+			logrus.Infoln(fmt.Sprintf("client disconnected count:%d, uuid:%s", len(c.clients), uniqueID))
 			return
 		}
 	}
