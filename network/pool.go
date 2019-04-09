@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 //PoolInterface interface
@@ -30,7 +28,7 @@ type Pool struct {
 	mu sync.RWMutex
 
 	// connection channel queue
-	conns chan *Node
+	connsQueue []*Node
 
 	// maximum channel cap
 	maxCap int
@@ -69,10 +67,10 @@ func NewOctoPool(initCap, maxCap int, factory Factory) (*Pool, error) {
 
 	// pool initialize
 	p := &Pool{
-		conns:   make(chan *Node, maxCap),
-		factory: factory,
-		maxCap:  maxCap,
-		initCap: initCap,
+		connsQueue: []*Node{},
+		factory:    factory,
+		maxCap:     maxCap,
+		initCap:    initCap,
 	}
 
 	// create initial connections
@@ -86,7 +84,7 @@ func NewOctoPool(initCap, maxCap int, factory Factory) (*Pool, error) {
 		}
 
 		// add node to queue channel
-		p.conns <- node
+		p.connsQueue = append(p.connsQueue, node)
 	}
 
 	return p, nil
@@ -99,41 +97,33 @@ func (p *Pool) Get() (*Node, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	select {
-	case nodeConn := <-p.conns:
-		return nodeConn, nil
-	default:
+	if len(p.connsQueue) == 0 {
 		return p.createNode()
 	}
+
+	nodeInf := p.connsQueue[len(p.connsQueue)-1]
+	p.connsQueue = p.connsQueue[:len(p.connsQueue)-1]
+	return nodeInf, nil
 }
 
 //Put back node into connection queue channel
 func (p *Pool) Put(node *Node) error {
-
-	fmt.Println("CONNS:", len(p.conns))
 
 	// check node connection
 	if node.Conn == nil {
 		return errConnNilRejecting
 	}
 
-	if p.conns == nil {
-		// pool is closed, close passed connection
-		return node.Conn.Close()
-	}
-
 	// write lock
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	select {
-	case p.conns <- node:
-		return nil
-	default:
-		// pool is full, close passed connection
-		logrus.Infoln("pool is full, close passed connection")
+	if len(p.connsQueue) == p.maxCap {
 		return node.Conn.Close()
 	}
+
+	p.connsQueue = append(p.connsQueue, node)
+	return nil
 }
 
 //createNode create new node connection
@@ -158,7 +148,7 @@ func (p *Pool) Close() {
 	p.mu.Unlock()
 
 	// get node from queue channel and close that
-	for node := range p.conns {
+	for _, node := range p.connsQueue {
 		node.Conn.Close()
 	}
 }

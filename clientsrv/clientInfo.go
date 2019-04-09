@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/quizofkings/octopus/respreader"
 	"github.com/sirupsen/logrus"
 )
 
@@ -13,14 +14,14 @@ type client struct {
 	incoming   chan []byte
 	outgoing   chan []byte
 	disconnect chan string
-	reader     *bufio.Reader
+	reader     *respreader.RESPReader
 	writer     *bufio.Writer
 }
 
 //newClient create new client
 func newClient(connection net.Conn, uniqueID string) *client {
 	writer := bufio.NewWriter(connection)
-	reader := bufio.NewReader(connection)
+	reader := respreader.NewReader(connection)
 
 	clientInf := &client{
 		incoming:   make(chan []byte),
@@ -67,13 +68,24 @@ func (c *client) listen() {
 }
 
 func (c *client) Read() {
+	// for {
+	// 	tmp := make([]byte, 2048)
+	// 	n, err := c.reader.Read(tmp)
+	// 	if err == io.EOF {
+	// 		return
+	// 	}
+	// 	c.incoming <- tmp[:n]
+	// }
 	for {
-		tmp := make([]byte, 2048)
-		n, err := c.reader.Read(tmp)
+
+		rec, err := c.reader.ReadObject()
 		if err == io.EOF {
-			return
+			continue
 		}
-		c.incoming <- tmp[:n]
+		if len(rec) == 0 {
+			continue
+		}
+		c.incoming <- rec
 	}
 }
 

@@ -65,7 +65,7 @@ func (n *Node) Read() {
 	for {
 		rec, err := n.reader.ReadObject()
 		if err == io.EOF {
-			return
+			continue
 		}
 		n.Incoming <- rec
 		// n.Incoming <- []byte("+OK\n")
