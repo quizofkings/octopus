@@ -20,7 +20,7 @@ func main() {
 	rw := sync.Mutex{}
 	count := 0
 	wg := &sync.WaitGroup{}
-	for i := 1; i <= 60; i++ {
+	for i := 1; i <= 30; i++ {
 		if i%30 == 0 {
 			time.Sleep(2 * time.Second)
 		}
@@ -35,4 +35,5 @@ func main() {
 	}
 
 	wg.Wait()
+	fmt.Println(count)
 }
