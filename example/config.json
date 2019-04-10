@@ -1,8 +1,8 @@
 {
     "port": 9090,
     "pool": {
-        "maxcap": 10,
-        "initcap": 3
+        "maxcap": 50,
+        "initcap": 30
     },
     "clusters": [
         {

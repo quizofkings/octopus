@@ -80,7 +80,7 @@ func (c *ClusterPool) AddNode(node string) error {
 		return net.Dial("tcp", node)
 	})
 	if err != nil {
-		logrus.Errorln(err)
+		logrus.Fatalln(err)
 		return err
 	}
 	logrus.Infoln(node, "created")
