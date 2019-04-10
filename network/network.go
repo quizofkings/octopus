@@ -2,12 +2,10 @@ package network
 
 import (
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 
 	"github.com/quizofkings/octopus/config"
-	"github.com/quizofkings/octopus/respreader"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,12 +16,11 @@ const (
 //NetCommands network interface
 type NetCommands interface {
 	Write(index int, msg []byte) ([]byte, error)
-	AddNode(node string) error
 }
 
 //ClusterPool struct
 type ClusterPool struct {
-	conns  map[string]pool // addr => pool
+	conns  map[string]Pool // addr => pool
 	reconn chan net.Conn
 }
 
@@ -39,7 +36,7 @@ func New() NetCommands {
 	logrus.Infoln("create node(s) connection")
 
 	var clusterPoolMap = ClusterPool{
-		conns:  map[string]pool{},
+		conns:  map[string]Pool{},
 		reconn: make(chan net.Conn),
 	}
 
@@ -78,11 +75,12 @@ func (c *ClusterPool) AddNode(node string) error {
 		return nil
 	}
 
-	p, err := newChannelPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
+	p, err := NewChannelPool(config.Reader.Pool.InitCap, config.Reader.Pool.MaxCap, func() (net.Conn, error) {
+		logrus.Infof("create new connection, remoteAddr:%s", node)
 		return net.Dial("tcp", node)
 	})
 	if err != nil {
-		logrus.Errorln(err)
+		logrus.Fatalln(err)
 		return err
 	}
 	logrus.Infoln(node, "created")
@@ -92,56 +90,69 @@ func (c *ClusterPool) AddNode(node string) error {
 }
 
 //Write write message into connection
-func (c *ClusterPool) Write(index int, msg []byte) ([]byte, error) {
+func (c *ClusterPool) Write(clusterIndex int, msg []byte) ([]byte, error) {
 
 	// get cluster node connection from pool
-	conn, err := c.getRandomNode(index)
+	addr, err := c.getRandomNode(clusterIndex)
 	if err != nil {
 		return nil, err
 	}
 
-	var movedCount int
-RETRYCMD:
-	// write into connection
-	if _, err := conn.Write(msg); err != nil {
-		logrus.Errorln(err)
+	return c.writeAction(addr, msg)
+}
+
+func (c *ClusterPool) writeAction(nodeAddr string, msg []byte) ([]byte, error) {
+
+	// variable
+	bufNode := []byte{}
+
+	// get node from octopool ^-^
+	octoPool := c.conns[nodeAddr]
+	conn, err := octoPool.Get()
+	defer conn.Close()
+	if err != nil {
 		return nil, err
 	}
 
-	// reader */*~
-	bufc := respreader.NewReader(conn)
-	bufNode, err := bufc.ReadObject()
-	if err != nil {
-		logrus.Errorln(err)
-		if err == io.EOF {
-			// send to channel for reconnect
-			c.reconn <- conn
-		}
-		return nil, err
-	}
+	node := newNode(conn)
+	defer node.Close()
+	node.outgoing <- msg
+
+	// reader := respreader.NewReader(conn)
+	// recChan := make(chan []byte)
+	// go func() {
+	// 	for {
+	// 		msg, err := reader.ReadObject()
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
+	// 		recChan <- msg
+	// 	}
+	// }()
+
+	bufNode = <-node.incoming
+
+	// bufNode = <-node.incoming //[]byte("+PONG\n") //<-recChan
 
 	// check moved or ask
 	moved, ask, addr := redisHasMovedError(bufNode)
-	if (moved || ask) && maxMoved > movedCount {
+	if moved || ask {
 		if err := c.AddNode(addr); err != nil {
 			logrus.Errorln(err)
 			return nil, err
 		}
 
-		conn, _ = c.conns[addr].get()
-
-		movedCount++
-		goto RETRYCMD
+		return c.writeAction(addr, msg)
 	}
 
 	return bufNode, nil
 }
 
-func (c *ClusterPool) getRandomNode(clusterIndex int) (net.Conn, error) {
+func (c *ClusterPool) getRandomNode(clusterIndex int) (string, error) {
 
 	// check requested index
 	if clusterIndex > len(config.Reader.Clusters)-1 {
-		return nil, errors.New("cluster index bigger than registered clusters")
+		return "", errors.New("cluster index bigger than registered clusters")
 	}
 
 	// get from config
@@ -150,10 +161,10 @@ func (c *ClusterPool) getRandomNode(clusterIndex int) (net.Conn, error) {
 	var choosedNode string
 	if lnClusterNodes > 1 {
 		// choose randomly
-		choosedNode = clusterNodes[rand.Intn(lnClusterNodes-1)]
+		choosedNode = clusterNodes[rand.Intn(lnClusterNodes)]
 	} else {
 		choosedNode = clusterNodes[0]
 	}
 
-	return c.conns[choosedNode].get()
+	return choosedNode, nil
 }

@@ -5,20 +5,13 @@ import (
 	"fmt"
 	"net"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
-var (
-	// ErrClosed is the error resulting if the pool is closed via pool.Close().
-	ErrClosed = errors.New("pool is closed")
-)
-
-type pool interface {
-	get() (net.Conn, error)
-	Close()
-	Len() int
-}
-
+// channelPool implements the Pool interface based on buffered channels.
 type channelPool struct {
+	// storage for our net.Conn connections
 	mu    sync.RWMutex
 	conns chan net.Conn
 
@@ -29,8 +22,13 @@ type channelPool struct {
 // Factory is a function to create new connections.
 type Factory func() (net.Conn, error)
 
-//newChannelPool create channel pool
-func newChannelPool(initialCap, maxCap int, factory Factory) (pool, error) {
+// NewChannelPool returns a new pool based on buffered channels with an initial
+// capacity and maximum capacity. Factory is used when initial capacity is
+// greater than zero to fill the pool. A zero initialCap doesn't fill the Pool
+// until a new Get() is called. During a Get(), If there is no new connection
+// available in the pool, a new connection will be created via the Factory()
+// method.
+func NewChannelPool(initialCap, maxCap int, factory Factory) (Pool, error) {
 	if initialCap < 0 || maxCap <= 0 || initialCap > maxCap {
 		return nil, errors.New("invalid capacity settings")
 	}
@@ -46,7 +44,7 @@ func newChannelPool(initialCap, maxCap int, factory Factory) (pool, error) {
 		conn, err := factory()
 		if err != nil {
 			c.Close()
-			return nil, fmt.Errorf("factory is not able to fill the pool, %s", err)
+			return nil, fmt.Errorf("factory is not able to fill the pool: %s", err)
 		}
 		c.conns <- conn
 	}
@@ -65,7 +63,7 @@ func (c *channelPool) getConnsAndFactory() (chan net.Conn, Factory) {
 // Get implements the Pool interfaces Get() method. If there is no new
 // connection available in the pool, a new connection will be created via the
 // Factory() method.
-func (c *channelPool) get() (net.Conn, error) {
+func (c *channelPool) Get() (net.Conn, error) {
 	conns, factory := c.getConnsAndFactory()
 	if conns == nil {
 		return nil, ErrClosed
@@ -81,6 +79,7 @@ func (c *channelPool) get() (net.Conn, error) {
 
 		return c.wrapConn(conn), nil
 	default:
+		logrus.Infoln("pool is empty, create new connection")
 		conn, err := factory()
 		if err != nil {
 			return nil, err
@@ -101,6 +100,7 @@ func (c *channelPool) put(conn net.Conn) error {
 	defer c.mu.RUnlock()
 
 	if c.conns == nil {
+		logrus.Infoln("pool is closed, close passed connection")
 		// pool is closed, close passed connection
 		return conn.Close()
 	}
@@ -111,6 +111,7 @@ func (c *channelPool) put(conn net.Conn) error {
 	case c.conns <- conn:
 		return nil
 	default:
+		logrus.Infoln("pool is full, close passed connection")
 		// pool is full, close passed connection
 		return conn.Close()
 	}
@@ -136,11 +137,4 @@ func (c *channelPool) Close() {
 func (c *channelPool) Len() int {
 	conns, _ := c.getConnsAndFactory()
 	return len(conns)
-}
-
-// newConn wraps a standard net.Conn to a poolConn net.Conn.
-func (c *channelPool) wrapConn(conn net.Conn) net.Conn {
-	p := &poolConn{c: c}
-	p.Conn = conn
-	return p
 }

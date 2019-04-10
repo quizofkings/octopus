@@ -1,0 +1,41 @@
+{
+    "port": 9090,
+    "pool": {
+        "maxcap": 50,
+        "initcap": 30
+    },
+    "clusters": [
+        {
+            "ismain": true,
+            "name": "qok-main",
+            "nodes": [
+                "172.20.4.76:7001",
+                "172.20.4.74:7012"
+            ],
+            "prefixes": []
+        },
+        {
+            "ismain": false,
+            "name": "qok-matching",
+            "nodes": [
+                "172.20.11.6:5001",
+                "172.20.11.8:5014"
+            ],
+            "prefixes": [
+                "game_matching:"
+            ]
+        },
+        {
+            "ismain": false,
+            "name": "qok-challenge",
+            "nodes": [
+                "172.20.11.7:4014",
+                "172.20.11.6:4012"
+            ],
+            "prefixes": [
+                "challenge:"
+            ]
+        }
+
+    ]
+}

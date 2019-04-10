@@ -2,6 +2,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/quizofkings/octopus)](https://goreportcard.com/report/github.com/quizofkings/octopus)
 [![CircleCI](https://circleci.com/gh/quizofkings/octopus/tree/master.svg?style=svg)](https://circleci.com/gh/quizofkings/octopus/tree/master)
 
+![octopus](https://user-images.githubusercontent.com/5120554/55684553-55575f80-5961-11e9-8713-f5deb953d6c8.png)
+
 Redis Multi-Cluster load balancing using prefix key,
 No need to change anything, octopus use RESP (REdis Serialization Protocol).
 *Developing/ Testing/ Documention in progress*
@@ -73,4 +75,9 @@ Flags:
 
 ```sh
 go run main.go -f config -p ./_example -t file
+```
+
+## Docker
+```
+https://hub.docker.com/r/amirsoleimani/octopus
 ```
