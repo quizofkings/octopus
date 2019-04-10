@@ -79,6 +79,7 @@ func (c *channelPool) Get() (net.Conn, error) {
 
 		return c.wrapConn(conn), nil
 	default:
+		logrus.Infoln("pool is empty, create new connection")
 		conn, err := factory()
 		if err != nil {
 			return nil, err

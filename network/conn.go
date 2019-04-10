@@ -3,8 +3,6 @@ package network
 import (
 	"net"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 // PoolConn is a wrapper around net.Conn to modify the the behavior of
@@ -16,11 +14,8 @@ type PoolConn struct {
 	unusable bool
 }
 
-// Close() puts the given connects back to the pool instead of closing it.
+//Close puts the given connects back to the pool instead of closing it.
 func (p *PoolConn) Close() error {
-
-	// logger
-	logrus.Infoln("connection puts back to the pool")
 
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -34,7 +29,7 @@ func (p *PoolConn) Close() error {
 	return p.c.put(p.Conn)
 }
 
-// MarkUnusable() marks the connection not usable any more, to let the pool close it instead of returning it to pool.
+//MarkUnusable marks the connection not usable any more, to let the pool close it instead of returning it to pool.
 func (p *PoolConn) MarkUnusable() {
 	p.mu.Lock()
 	p.unusable = true

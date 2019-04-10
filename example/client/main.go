@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-redis/redis"
 )
@@ -15,18 +16,18 @@ func main() {
 		// PoolSize: 5,
 	})
 
-	// RETRY:
-	// 	count := 0
-	// 	for i := 1; i <= 20; i++ {
-	// 		if i%20 == 0 {
-	// 			time.Sleep(1 * time.Second)
-	// 		}
-	// 		go func(i int) {
-	// 			fmt.Println(client.Ping().Result())
-	fmt.Println(client.SMembers("peste:category:6").Result())
-	// }(i)
-	// }
+RETRY:
+	count := 0
+	for i := 1; i <= 100; i++ {
+		if i%40 == 0 {
+			time.Sleep(1 * time.Second)
+		}
+		go func(i int) {
+			fmt.Println(client.Ping().Result())
+			// fmt.Println(client.SMembers("peste:category:6").Result())
+		}(i)
+	}
 
-	// fmt.Println(count)
-	// goto RETRY
+	fmt.Println(count)
+	goto RETRY
 }
